@@ -1,19 +1,20 @@
 import torch
 import torch.nn as nn
+import torch.optim as optim
+import numpy as np
 
 class Agent(nn.Module):
     def __init__(self):
         super(Agent, self).__init__()
         self.fc = nn.Sequential(
             nn.Linear(4, 128),
-            nn.ReLU(),
+            nn.Softplus(),
+            # nn.ReLU(),
             nn.Linear(128, 4)
         )
 
     def forward(self, state):
         return self.fc(state)
-
-import numpy as np
 
 class Environment:
     def __init__(self, size=5):
@@ -41,17 +42,11 @@ class Environment:
         reward = 1 if done else -0.1
         return self.get_state(), reward, done
 
-import torch.optim as optim
-
-# Create agent and optimizer
-agent = Agent()
-optimizer = optim.Adam(agent.parameters())
-
-# Create environment
-env = Environment()
-
-# Training loop
-for episode in range(10000):
+def train_loop():
+    global env
+    global agent
+    global optimizer
+    global loss
     state = env.reset()
     log_probs = []
     rewards = []
@@ -79,12 +74,6 @@ for episode in range(10000):
     loss.backward()
     optimizer.step()
 
-    # Print progress
-    if episode % 100 == 0:
-        print(f"Episode {episode}: loss = {loss.item()}")
-
-torch.save(agent.state_dict(), 'agent_model.pth')
-
 def print_env(env):
     for i in range(env.size):
         for j in range(env.size):
@@ -97,20 +86,37 @@ def print_env(env):
         print()  # newline at the end of each row
     print()  # newline to separate each step
 
+# def main():
 
-# Testing loop
-with torch.no_grad():
-    state = env.reset()
-    print_env(env)
-    done = False
-    while not done:
-        # Select action
-        state_tensor = torch.FloatTensor(state)
-        action_probs = nn.Softmax(dim=-1)(agent(state_tensor))
-        action = torch.distributions.Categorical(action_probs).sample()
+if __name__=="__main__":
+        # Create agent and optimizer
+    agent = Agent()
+    agent.load_state_dict(torch.load('agent_model.pth'))
+    optimizer = optim.Adam(agent.parameters())
 
-        # Take a step
-        state, reward, done = env.step(action.item())
+    # Create environment
+    env = Environment()
+    # Training loop
+    for episode in range(100000):
+        train_loop()
+        # Print progress
+        if episode % 100 == 0:
+            print(f"Episode {episode}: loss = {loss.item()}")
 
-        # Print current state
+    torch.save(agent.state_dict(), 'agent_model.pth')
+    # Testing loop
+    with torch.no_grad():
+        state = env.reset()
         print_env(env)
+        done = False
+        while not done:
+            # Select action
+            state_tensor = torch.FloatTensor(state)
+            action_probs = nn.Softmax(dim=-1)(agent(state_tensor))
+            action = torch.distributions.Categorical(action_probs).sample()
+
+            # Take a step
+            state, reward, done = env.step(action.item())
+
+            # Print current state
+            print_env(env)
